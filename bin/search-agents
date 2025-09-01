@@ -1,0 +1,61 @@
+#!/bin/bash
+# AI Agent Communication - Agent Discovery Tool
+# Shows all active AI agent instances detected by the discovery server
+
+# Configuration - make this portable
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Default discovery server configuration
+DISCOVERY_HOST="${DISCOVERY_HOST:-localhost}"
+DISCOVERY_PORT="${DISCOVERY_PORT:-9005}"
+DISCOVERY_URL="${DISCOVERY_URL:-http://$DISCOVERY_HOST:$DISCOVERY_PORT}"
+
+# Check if discovery server is running
+if ! curl -s --max-time 2 "$DISCOVERY_URL/health" > /dev/null 2>&1; then
+    echo "❌ Agent discovery server not responding at $DISCOVERY_URL"
+    echo ""
+    echo "To start the discovery server:"
+    echo "  python $PROJECT_DIR/agent_discovery.py"
+    echo ""
+    echo "Or set environment variables:"
+    echo "  DISCOVERY_HOST - Server hostname (default: localhost)"
+    echo "  DISCOVERY_PORT - Server port (default: 9005)"
+    echo "  DISCOVERY_URL  - Full server URL (overrides HOST/PORT)"
+    exit 1
+fi
+
+# Fetch agent data
+response=$(curl -s "$DISCOVERY_URL/agents" 2>/dev/null)
+
+if [ $? -ne 0 ] || [ -z "$response" ]; then
+    echo "❌ Failed to fetch agent data from $DISCOVERY_URL"
+    exit 1
+fi
+
+# Parse and display results
+echo "🔍 AI Agent Discovery Results"
+echo "📡 Server: $DISCOVERY_URL"
+echo ""
+
+# Check if we have jq for pretty formatting
+if command -v jq >/dev/null 2>&1; then
+    # Use jq for nice formatting
+    agent_count=$(echo "$response" | jq -r '.agents | length')
+    if [ "$agent_count" -eq 0 ]; then
+        echo "📭 No active AI agents detected"
+        echo ""
+        echo "Make sure you have:"
+        echo "  • tmux sessions running"
+        echo "  • AI agents (claude, opencode, etc.) active in panes"
+    else
+        echo "$response" | jq -r '.agents | to_entries[] | "🤖 \(.key):", (.value[] | "   • \(.pane) in \(.path)"), ""'
+    fi
+else
+    # Fallback without jq
+    echo "Raw response (install jq for better formatting):"
+    echo "$response"
+fi
+
+echo ""
+echo "💡 Tip: Use 'tmux-message <agent> <path> <message>' to communicate with agents"

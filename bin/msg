@@ -1,0 +1,64 @@
+#!/bin/bash
+# AI Agent Communication - Easy Messaging Tool
+# Usage: msg <agent> <message>
+# Example: msg claude "hello" or msg opencode "what's up"
+
+# Configuration - make this portable
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+TMUX_MESSAGE_SCRIPT="$PROJECT_DIR/tmux_message.py"
+
+# Default discovery server configuration
+DISCOVERY_HOST="${DISCOVERY_HOST:-localhost}"
+DISCOVERY_PORT="${DISCOVERY_PORT:-9005}"
+DISCOVERY_URL="${DISCOVERY_URL:-http://$DISCOVERY_HOST:$DISCOVERY_PORT}"
+
+if [[ $# -lt 2 ]]; then
+    echo "AI Agent Communication - Easy Messaging Tool"
+    echo ""
+    echo "Usage: msg <agent> <message>"
+    echo ""
+    echo "Examples:"
+    echo "  msg claude 'Hello from terminal'"
+    echo "  msg opencode 'Status check'"
+    echo "  msg homelab 'System alert'"
+    echo ""
+    echo "Available agents:"
+    "$SCRIPT_DIR/search-agents" 2>/dev/null || echo "  (Run search-agents to see available agents)"
+    exit 1
+fi
+
+agent="$1"
+shift
+message="$*"
+
+# Check if tmux_message.py exists
+if [ ! -f "$TMUX_MESSAGE_SCRIPT" ]; then
+    echo "❌ Error: tmux_message.py not found at $TMUX_MESSAGE_SCRIPT"
+    echo "Make sure you're running this from the ai-agent-communication directory"
+    exit 1
+fi
+
+# Check if discovery server is running
+if ! curl -s --max-time 2 "$DISCOVERY_URL/health" > /dev/null 2>&1; then
+    echo "⚠️  Agent discovery server not available at $DISCOVERY_URL"
+    echo "   Attempting to find agent manually..."
+    echo ""
+    # Try to find agent using tmux directly
+    python3 "$TMUX_MESSAGE_SCRIPT" "$agent" "." "$message"
+    exit $?
+fi
+
+# Get first available path for the agent
+agent_info=$(curl -s "$DISCOVERY_URL/agents" 2>/dev/null | jq -r ".agents.$agent[0].path" 2>/dev/null)
+
+if [[ "$agent_info" == "null" || -z "$agent_info" ]]; then
+    echo "❌ Agent '$agent' not found."
+    echo ""
+    echo "Available agents:"
+    "$SCRIPT_DIR/search-agents" 2>/dev/null || echo "  (Could not fetch agent list)"
+    exit 1
+fi
+
+# Send the message
+python3 "$TMUX_MESSAGE_SCRIPT" "$agent" "$agent_info" "$message"

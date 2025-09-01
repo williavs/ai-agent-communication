@@ -1,0 +1,80 @@
+#!/bin/bash
+# AI Agent Communication - TTS CLI Tool
+# Usage: say "Hello world!" or say "Hello world!" danny
+
+# Configuration - make this portable
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Default TTS server configuration
+TTS_HOST="${TTS_HOST:-localhost}"
+TTS_PORT="${TTS_PORT:-9003}"
+TTS_URL="${TTS_URL:-http://$TTS_HOST:$TTS_PORT}"
+
+# Check if last argument is a voice name
+voice=""
+voices="amy danny kathleen ryan lessac libritts"
+
+# If last argument is a voice name, use it
+last_arg="${!#}"
+if [[ " $voices " == *" $last_arg "* ]] && [ "$#" -gt 1 ]; then
+    voice="$last_arg"
+    # Remove last argument (the voice)
+    set -- "${@:1:$(($#-1))}"
+fi
+
+# Join all remaining arguments into a single message
+message="$*"
+
+# Check if message is empty
+if [ -z "$message" ]; then
+    echo "AI Agent Communication - TTS CLI Tool"
+    echo ""
+    echo "Usage: say <message> [voice]"
+    echo ""
+    echo "Examples:"
+    echo "  say 'System is healthy'"
+    echo "  say 'Male voice test' danny"
+    echo "  say 'Alert detected' kathleen"
+    echo ""
+    echo "Available voices: amy (default), danny, kathleen, ryan, lessac, libritts"
+    echo ""
+    echo "Configuration (environment variables):"
+    echo "  TTS_HOST - Server hostname (default: localhost)"
+    echo "  TTS_PORT - Server port (default: 9003)"
+    echo "  TTS_URL  - Full server URL (overrides HOST/PORT)"
+    exit 1
+fi
+
+# Check if TTS server is running
+if ! curl -s --max-time 2 "$TTS_URL/" > /dev/null 2>&1; then
+    echo "Error: TTS server not responding at $TTS_URL" >&2
+    echo "Make sure the TTS server is running: python $PROJECT_DIR/tts_server.py" >&2
+    exit 1
+fi
+
+# URL encode the message (handle spaces and common characters)
+if command -v jq >/dev/null 2>&1; then
+    encoded_message=$(printf '%s\n' "$message" | jq -sRr @uri)
+else
+    # Fallback encoding without jq
+    encoded_message=$(printf '%s\n' "$message" | sed 's/ /%20/g; s/!/%21/g; s/"/%22/g; s/#/%23/g; s/\$/%24/g; s/&/%26/g; s/'\''/%27/g; s/(/%28/g; s/)/%29/g; s/\*/%2A/g; s/+/%2B/g; s/,/%2C/g; s/-/%2D/g; s/\./%2E/g; s/\//%2F/g')
+fi
+
+# Build URL with optional voice parameter
+url="$TTS_URL/play?text=$encoded_message"
+if [ -n "$voice" ]; then
+    url="${url}&voice=${voice}"
+fi
+
+# Send to TTS server with error handling
+response=$(curl -s -w "%{http_code}" "$url" -o /dev/null 2>/dev/null)
+
+if [ "$response" = "200" ]; then
+    # Success - audio played
+    :
+else
+    echo "TTS Error: Server returned $response" >&2
+    echo "Make sure TTS server is running and accessible at $TTS_URL" >&2
+    exit 1
+fi
