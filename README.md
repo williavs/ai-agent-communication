@@ -1,13 +1,12 @@
-# AI Agent Communication System
+# Slaygent Communication System
 
 A complete, portable communication system for AI coding assistants and agents. Enables seamless messaging between tmux panes, text-to-speech output, and agent discovery across your development environment.
 
-## 🚀 Features
 
-- **Cross-Agent Messaging**: Send messages between AI agents in different tmux panes
+
+- **Cross-Agent Messaging**: AI CLI TOOLS Send messages between AI CLI Tools in different tmux panes
 - **Text-to-Speech**: Voice output with multiple neural voices
 - **Agent Discovery**: Automatically detect and list active AI agents
-- **Portable Design**: Works out-of-the-box on any Linux system with tmux
 - **Easy Installation**: One-command setup with comprehensive install script
 - **Flexible Configuration**: Environment variables and config files
 
